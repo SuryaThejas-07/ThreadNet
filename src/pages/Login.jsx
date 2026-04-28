@@ -85,6 +85,14 @@ const getAuthErrorMeta = (error, mode = 'signin') => {
       message: 'The Google sign-in popup was closed before completion.',
       actions: ['Click Continue with Google again and complete the flow.'],
     },
+    'app/invalid-admin-email': {
+      title: 'Invalid administrator account',
+      message: 'This email is not approved for Administrator access in this factory.',
+      actions: [
+        'Use the configured factory admin email only.',
+        'Choose Factory Owner or Logistics Provider if this is your regular account.',
+      ],
+    },
   };
 
   const matched = authErrors[code];

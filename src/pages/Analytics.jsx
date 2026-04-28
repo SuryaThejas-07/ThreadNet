@@ -6,6 +6,7 @@ import ErrorBanner from '../components/ErrorBanner';
 import { subscribeToAnalyticsData } from '../services/liveCollections';
 import SearchFilterBar from '../components/SearchFilterBar';
 import { useI18n } from '../contexts/I18nContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const ranges = ['7d', '30d', '90d'];
 const clusters = ['All Clusters', 'Tiruppur', 'Surat', 'Ludhiana', 'Panipat'];
@@ -27,6 +28,8 @@ const downloadCsv = (rows, name) => {
 
 const Analytics = () => {
   const { t, formatCompactNumber, formatNumber } = useI18n();
+  const { user } = useAuth();
+  const role = String(user?.role || user?.accountType || '').trim().toLowerCase();
   const [range, setRange] = useState('30d');
   const [cluster, setCluster] = useState('All Clusters');
   const [liveAnalytics, setLiveAnalytics] = useState(null);
@@ -39,12 +42,13 @@ const Analytics = () => {
       },
       (error) => {
         console.error(error);
-        setAnalyticsError(`Live analytics data failed to load. ${error?.message || 'Showing fallback demo data.'}`);
+        setAnalyticsError(`Analytics data loading or access issue.`);
       },
+      { role },
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [role]);
 
   const series = liveAnalytics?.seriesByRange?.[range]?.length ? liveAnalytics.seriesByRange[range] : analyticsSeries[range];
 
@@ -80,7 +84,7 @@ const Analytics = () => {
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <span className={`badge ${liveAnalytics?.isLive ? 'badge-primary' : 'badge-secondary'}`}>
-              {liveAnalytics?.isLive ? t('common.liveData', 'Live Firestore data') : t('common.demoData', 'Demo fallback data')}
+              {liveAnalytics?.isLive ? 'Firebase live' : 'Demo fallback'}
             </span>
             <span className="badge badge-secondary">Range {range}</span>
           </div>

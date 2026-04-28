@@ -2,8 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import LoadingSkeleton from './LoadingSkeleton';
 import { useAuth } from '../contexts/AuthContext';
-
-const normalizeRole = (value) => String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
+import { normalizeRole } from '../constants/roles';
 
 const ProtectedRoute = ({ children, roles }) => {
   const { isAuthenticated, loading, user } = useAuth();

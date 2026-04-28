@@ -5,9 +5,12 @@ import ErrorBanner from '../components/ErrorBanner';
 import { subscribeToAdminConsoleData, updateFeatureFlags, updateModerationQueueItem } from '../services/liveCollections';
 import SearchFilterBar from '../components/SearchFilterBar';
 import { useI18n } from '../contexts/I18nContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const AdminConsole = () => {
   const { t, formatNumber } = useI18n();
+  const { user } = useAuth();
+  const role = String(user?.role || user?.accountType || '').trim().toLowerCase();
   const [flags, setFlags] = useState({
     smartRouting: true,
     autoModeration: false,
@@ -28,12 +31,13 @@ const AdminConsole = () => {
       },
       (error) => {
         console.error(error);
-        setAdminError(`Live admin data failed to load. ${error?.message || 'Showing fallback demo data.'}`);
+        setAdminError(`Admin console access restricted to administrators.`);
       },
+      { role },
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [role]);
 
   const users = liveAdmin?.adminUsers?.length ? liveAdmin.adminUsers : adminUsersSeed;
   const moderationQueue = liveAdmin?.moderationQueue?.length ? liveAdmin.moderationQueue : moderationQueueSeed;
@@ -112,9 +116,12 @@ const AdminConsole = () => {
             <div className="space-y-3">
               {filteredUsers.map((user) => (
                 <div key={user.id} className="p-3 rounded-lg bg-[var(--surface-active)] flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-[var(--text)]">{user.name}</p>
-                    <p className="text-xs text-[var(--text-tertiary)]">{user.id} • {user.role}</p>
+                  <div className="flex items-center gap-3">
+                    <img src={user.avatarUrl || ''} alt={user.name} className="h-12 w-12 rounded-full object-cover border border-[var(--border)]" />
+                    <div>
+                      <p className="font-semibold text-[var(--text)]">{user.name}</p>
+                      <p className="text-xs text-[var(--text-tertiary)]">{user.id} • {user.role}</p>
+                    </div>
                   </div>
                   <span className={`badge ${user.status === 'Active' ? 'badge-primary' : 'badge-danger'}`}>{user.status}</span>
                 </div>

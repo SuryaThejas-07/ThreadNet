@@ -1,20 +1,36 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const GEMINI_MODEL = 'gemini-1.5-flash';
+const FALLBACK_MODELS = [
+  import.meta.env.VITE_GEMINI_MODEL,
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-latest',
+].filter(Boolean);
 
-let cachedModel = null;
+let cachedClient = null;
+const cachedModels = new Map();
 
-const getModel = () => {
+const getClient = () => {
   const apiKey = import.meta.env.VITE_GEMINI_KEY;
   if (!apiKey) {
     throw new Error('Gemini API key missing. Set VITE_GEMINI_KEY in your environment.');
   }
 
-  if (cachedModel) return cachedModel;
+  if (cachedClient) return cachedClient;
 
-  const client = new GoogleGenerativeAI(apiKey);
-  cachedModel = client.getGenerativeModel({ model: GEMINI_MODEL });
-  return cachedModel;
+  cachedClient = new GoogleGenerativeAI(apiKey);
+  return cachedClient;
+};
+
+const getModel = (modelName) => {
+  if (cachedModels.has(modelName)) {
+    return cachedModels.get(modelName);
+  }
+
+  const client = getClient();
+  const model = client.getGenerativeModel({ model: modelName });
+  cachedModels.set(modelName, model);
+  return model;
 };
 
 const parseJsonPayload = (rawText) => {
@@ -65,8 +81,6 @@ export const generateDashboardRecommendation = async ({
   moneySavedInr,
   selectedFactory,
 }) => {
-  const model = getModel();
-
   const prompt = [
     'You are an operations copilot for ThreadNet, a textile resource exchange platform.',
     'Return ONLY valid JSON (no markdown) with this exact schema:',
@@ -86,13 +100,23 @@ export const generateDashboardRecommendation = async ({
     `selectedFactory=${selectedFactory}`,
   ].join('\n');
 
-  const response = await model.generateContent(prompt);
-  const rawText = response?.response?.text?.() || '';
-  const payload = parseJsonPayload(rawText);
+  let lastError = null;
+  for (const modelName of FALLBACK_MODELS) {
+    try {
+      const model = getModel(modelName);
+      const response = await model.generateContent(prompt);
+      const rawText = response?.response?.text?.() || '';
+      const payload = parseJsonPayload(rawText);
 
-  if (!payload) {
-    throw new Error('Gemini returned a non-JSON response.');
+      if (!payload) {
+        throw new Error('Gemini returned a non-JSON response.');
+      }
+
+      return normalizeRecommendation(payload, `Launch deal from ${selectedFactory || city}`);
+    } catch (error) {
+      lastError = error;
+    }
   }
 
-  return normalizeRecommendation(payload, `Launch deal from ${selectedFactory || city}`);
+  throw lastError || new Error('Unable to generate Gemini recommendation with available models.');
 };

@@ -1,0 +1,16 @@
+{
+  "projects": {
+    "y": "threadnet-22ab4",
+    "default": "threadnet-22ab4"
+  },
+  "targets": {
+    "threadnet-22ab4": {
+      "hosting": {
+        "newsite": [
+          "threadnet"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

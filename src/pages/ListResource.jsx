@@ -17,6 +17,7 @@ const ListResource = () => {
   });
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState('');
+  const [previewUrl, setPreviewUrl] = useState('');
   const { errors, validate, clearError } = useFormValidation(validateResourceDetails);
 
   const steps = [
@@ -39,6 +40,7 @@ const ListResource = () => {
     const file = e.target.files?.[0];
     if (file && step === 2) {
       setLoading(true);
+      setPreviewUrl(URL.createObjectURL(file));
       // Simulate API call
       setTimeout(() => {
         setLoading(false);
@@ -169,6 +171,8 @@ const ListResource = () => {
                     >
                       <Loader className="text-[var(--primary)] mx-auto mb-4" size={32} />
                     </motion.div>
+                  ) : previewUrl ? (
+                    <img src={previewUrl} alt="Resource preview" className="h-48 w-full rounded-lg object-cover" />
                   ) : (
                     <>
                       <Camera className="text-[var(--primary)] mx-auto mb-4" size={32} />

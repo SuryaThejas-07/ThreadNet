@@ -10,13 +10,16 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
 
-          if (id.includes('react-router-dom')) return 'vendor-router';
+          if (id.includes('react-router')) return 'vendor-router';
+          if (id.includes('react-dom') || id.includes('/react/')) return 'vendor-react';
           if (id.includes('firebase')) return 'vendor-firebase';
           if (id.includes('framer-motion')) return 'vendor-motion';
           if (id.includes('lucide-react') || id.includes('react-hot-toast')) return 'vendor-ui';
           if (id.includes('@google/generative-ai')) return 'vendor-ai';
 
-          return 'vendor-core';
+          const parts = id.split('node_modules/')[1]?.split('/') || [];
+          const packageName = parts[0]?.startsWith('@') ? `${parts[0]}-${parts[1] || 'pkg'}` : parts[0] || 'misc';
+          return `vendor-${packageName.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
         },
       },
     },

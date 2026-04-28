@@ -671,16 +671,6 @@ const Dashboard = () => {
     [selectedFactoryCity, selectedMarker, selectedFactoryMarker],
   );
 
-  const routePath = useMemo(() => {
-    if (!selectedMarker?.lat || !selectedMarker?.lng) return [];
-
-    const secondaryMarkers = cityMarkers.filter((city) => city.name !== selectedMarker.name).slice(0, 2);
-    return [
-      { lat: selectedMarker.lat, lng: selectedMarker.lng },
-      ...secondaryMarkers.map((city) => ({ lat: city.lat, lng: city.lng })),
-    ];
-  }, [cityMarkers, selectedMarker]);
-
   const baseRecommendation = useMemo(() => {
     const liveRecommendation =
       activeProfile.recommendations?.find((entry) => entry.city === (currentCity?.name || '')) ||
@@ -752,8 +742,6 @@ const Dashboard = () => {
   const savingsPoints = buildPoints(activeProfile.savings);
   const maxLifecycle = Math.max(...activeProfile.lifecycle.map((entry) => entry.value));
   const liveFactoryCount = visibleFactories.length;
-
-  const mapRoutePath = routePath.map((point) => [point.lat, point.lng]);
   // Using static stylized SVG map as baseline; AtlasMap (MapLibre) will render underneath.
 
   const visiblePredictiveAlerts = useMemo(() => {
@@ -1026,7 +1014,7 @@ const Dashboard = () => {
           <p className="text-[var(--text-secondary)] text-lg">{activeProfile.subtitle}</p>
           <div className="mt-3">
             <span className={`badge ${liveBundle ? 'badge-primary' : 'badge-secondary'}`}>
-              {liveBundle ? t('common.liveData', 'Live Firestore data') : t('common.demoData', 'Demo fallback data')}
+              {liveBundle ? 'Firebase live' : 'Demo fallback'}
             </span>
           </div>
         </motion.div>
@@ -1266,7 +1254,7 @@ const Dashboard = () => {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap justify-end">
                   <span className={`badge ${aiRecommendation ? 'badge-primary' : 'badge-secondary'}`}>
-                    {aiRecommendation ? t('dashboard.geminiLive', 'Gemini live') : t('dashboard.fallbackModel', 'Fallback model')}
+                    {aiRecommendation ? 'Gemini live' : 'Gemini fallback'}
                   </span>
                   <span className="badge badge-primary">{recommendation.confidence}</span>
                 </div>
@@ -1628,76 +1616,96 @@ const Dashboard = () => {
             ) : null}
           </div>
 
-          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-active)] p-4">
-            <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
-              <p className="text-xs text-[var(--text-tertiary)] uppercase tracking-wider">Historical vs forecast</p>
-              <div className="flex items-center gap-3 text-[11px] text-[var(--text-muted)]">
-                <span className="flex items-center gap-1">
-                  <span className="inline-block h-2 w-2 rounded-full bg-[var(--primary)]" /> Historical
+          <div className="rounded-lg border border-[var(--border)] bg-gradient-to-b from-[var(--surface)] to-[var(--surface-active)] p-6 shadow-lg">
+            <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+              <div>
+                <p className="text-sm font-black text-[var(--text)] mb-1">Monthly Sales Performance</p>
+                <p className="text-xs text-[var(--text-tertiary)] uppercase tracking-wider">Historical vs forecast</p>
+              </div>
+              <div className="flex items-center gap-3 text-[11px] text-[var(--text-secondary)] flex-wrap">
+                <span className="flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-active)] px-3 py-1.5">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)]" />
+                  Historical
                 </span>
-                <span className="flex items-center gap-1">
-                  <span className="inline-block h-2 w-2 rounded-full bg-[var(--warning)]" /> Forecast
+                <span className="flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-active)] px-3 py-1.5">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--warning)]" />
+                  Forecast
                 </span>
               </div>
             </div>
-            <div className="rounded-2xl border border-[var(--border)] bg-[linear-gradient(180deg,rgba(18,30,40,0.92),rgba(18,30,40,0.72))] p-3">
-              <svg viewBox="0 0 100 40" className="block h-60 w-full overflow-visible">
+            <div className="rounded-2xl border border-[var(--border)] bg-gradient-to-b from-[rgba(10,25,35,0.95)] to-[rgba(18,30,40,0.85)] p-5 backdrop-blur-sm">
+              <svg viewBox="0 0 100 40" className="block h-72 w-full overflow-visible">
                 <defs>
                   <linearGradient id="monthlySalesGradient" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="var(--secondary)" stopOpacity="0.75" />
-                    <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.18" />
+                    <stop offset="0%" stopColor="var(--secondary)" stopOpacity="0.8" />
+                    <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.15" />
                   </linearGradient>
                   <linearGradient id="monthlyForecastGradient" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="var(--warning)" stopOpacity="0.48" />
-                    <stop offset="100%" stopColor="var(--warning)" stopOpacity="0.08" />
+                    <stop offset="0%" stopColor="var(--warning)" stopOpacity="0.65" />
+                    <stop offset="100%" stopColor="var(--warning)" stopOpacity="0.05" />
                   </linearGradient>
                 </defs>
                 {[8, 16, 24, 32].map((lineY) => (
-                  <line key={lineY} x1="4" x2="96" y1={lineY} y2={lineY} stroke="rgba(176, 200, 219, 0.12)" strokeDasharray="2 3" />
+                  <line key={lineY} x1="4" x2="96" y1={lineY} y2={lineY} stroke="rgba(176, 200, 219, 0.15)" strokeDasharray="2 3" />
                 ))}
-                <polygon points={monthlyHistoryAreaPoints} fill="url(#monthlySalesGradient)" opacity="0.75" />
+                <polygon points={monthlyHistoryAreaPoints} fill="url(#monthlySalesGradient)" opacity="0.85" />
                 <polyline
                   fill="none"
                   stroke="url(#monthlySalesGradient)"
-                  strokeWidth="1.8"
+                  strokeWidth="2.2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   points={monthlyHistoryPoints}
                 />
-                <polygon points={monthlyForecastAreaPoints} fill="url(#monthlyForecastGradient)" opacity="0.85" />
+                <polygon points={monthlyForecastAreaPoints} fill="url(#monthlyForecastGradient)" opacity="0.9" />
                 <polyline
                   fill="none"
                   stroke="var(--warning)"
-                  strokeWidth="1.7"
-                  strokeDasharray="3 2"
+                  strokeWidth="2"
+                  strokeDasharray="4 3"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   points={monthlyForecastPoints}
                 />
               </svg>
             </div>
-            <div className="mt-3 flex flex-wrap gap-4 text-xs text-[var(--text-muted)]">
-              <span>Days 1-30: historical streams</span>
-              <span>Days 31-37: BigQuery ML forecast</span>
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--text-muted)]">
+              <span>Days 1-30: historical</span>
+              <span>Days 31-37: forecast</span>
+              <span>Dashed line = projected path</span>
             </div>
           </div>
 
-          <div className="grid grid-3 gap-3 mt-4">
+          <div className="grid gap-4 mt-6 md:grid-cols-3">
             {monthlySalesDemo.streams.map((stream) => {
               const streamQuality = Math.round(Number(stream.quality?.qualityScore || 0) * 100);
               const streamBadge = getThresholdBadge(streamQuality);
 
               return (
-                <div key={stream.key} className="rounded-lg border border-[var(--border)] bg-[var(--surface-active)] p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs uppercase tracking-wider text-[var(--text-tertiary)]">{stream.label}</p>
-                    <span className={`badge ${streamBadge.className}`}>{streamBadge.label}</span>
+                <div key={stream.key} className="rounded-lg border border-[var(--border)] bg-gradient-to-br from-[var(--surface)] to-[var(--surface-active)] p-4 hover:border-[var(--primary)]/50 transition-all hover:shadow-lg min-h-[190px]">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-widest text-[var(--text-tertiary)] font-bold mb-1">{stream.label}</p>
+                      <p className="text-2xl font-black text-[var(--text)] leading-none">{stream.series[stream.series.length - 1] || 0}</p>
+                      <p className="text-xs text-[var(--text-tertiary)] mt-1">per day</p>
+                    </div>
+                    <span className={`badge ${streamBadge.className} text-xs font-bold`}>{streamBadge.label}</span>
                   </div>
-                  <p className="text-lg font-black mt-1">{stream.series[stream.series.length - 1] || 0} / day</p>
-                  <p className="text-xs text-[var(--text-muted)] mt-1">30-day value: {formatCompactNumber(stream.monthlyValueInr || 0, { style: 'currency', currency: 'INR', maximumFractionDigits: 1 })}</p>
-                  <p className="text-xs text-[var(--text-muted)] mt-1">Contribution: {(stream.contributionPercent || 0).toFixed(1)}% • Quality: {streamQuality}%</p>
-                  <div className="mt-3 h-2 rounded-full bg-[var(--border)] overflow-hidden">
-                    <div className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)]" style={{ width: `${stream.contributionPercent || 0}%` }} />
+                  <div className="space-y-1.5 mb-3 text-xs text-[var(--text-muted)]">
+                    <p><span className="font-semibold text-[var(--text-secondary)]">30-day value:</span> {formatCompactNumber(stream.monthlyValueInr || 0, { style: 'currency', currency: 'INR', maximumFractionDigits: 1 })}</p>
+                    <p><span className="font-semibold text-[var(--text-secondary)]">Contribution:</span> {(stream.contributionPercent || 0).toFixed(1)}%</p>
+                  </div>
+                  <div className="pt-3 border-t border-[var(--border)]">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="text-xs font-semibold text-[var(--text-tertiary)]">Quality Score</span>
+                      <span className="text-xs font-black text-[var(--primary)]">{streamQuality}%</span>
+                    </div>
+                    <div className="h-2.5 rounded-full bg-[var(--border)] overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)] shadow-lg"
+                        style={{ width: `${streamQuality}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
               );

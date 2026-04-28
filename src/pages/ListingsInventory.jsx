@@ -7,6 +7,7 @@ import EmptyState from '../components/EmptyState';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import FormField from '../components/FormField';
 import { useAuth } from '../contexts/AuthContext';
+import { ROLES, normalizeRole } from '../constants/roles';
 import {
   createListingDraft,
   incrementListingVersion,
@@ -53,9 +54,9 @@ const formatInrCompact = (value) => {
 
 const ListingsInventory = () => {
   const { user } = useAuth();
-  const role = String(user?.role || user?.accountType || '').trim().toLowerCase();
-  const isFactoryOwner = role === 'factory_owner';
-  const isAdmin = role === 'administrator';
+  const role = normalizeRole(user?.role || user?.accountType || '');
+  const isFactoryOwner = role === ROLES.FACTORY_OWNER;
+  const isAdmin = role === ROLES.ADMINISTRATOR;
   const canCreateDraft = isFactoryOwner;
   const [items, setItems] = useState([]);
   const [filter, setFilter] = useState('All');
@@ -82,6 +83,8 @@ const ListingsInventory = () => {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
+    const userId = user?.uid;
+    const organization = user?.organization || '';
     const unsubscribe = subscribeToListings(
       (listings) => {
         setItems(listings);
@@ -93,10 +96,11 @@ const ListingsInventory = () => {
         setError('Could not load listings from Firestore. Check Firebase rules or connection.');
         setLoading(false);
       },
+      { userId, role, organization },
     );
 
     return () => unsubscribe();
-  }, [refreshTick]);
+  }, [refreshTick, user?.uid, user?.organization, role]);
 
   const filtered = useMemo(() => {
     return items.filter((item) => {
@@ -104,6 +108,8 @@ const ListingsInventory = () => {
       return normalizeStatus(item.status) === normalizeStatus(filter);
     });
   }, [items, filter]);
+
+  const getListingImage = (entry) => entry.coverImage || entry.mediaUrls?.[0] || '';
 
   const counts = useMemo(
     () => ({
@@ -183,7 +189,7 @@ const ListingsInventory = () => {
         ...draft,
         mediaUrls,
         status: 'draft',
-      });
+      }, user?.uid);
       toast.success('Draft saved to Firestore.');
       clearDraft();
     } catch (saveError) {
@@ -413,8 +419,12 @@ const ListingsInventory = () => {
           <div className="space-y-4">
             {filtered.map((entry) => (
               <motion.div key={entry.id} className="card" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-                <div className="flex items-start justify-between gap-4 flex-wrap">
-                  <div>
+                <div className="grid gap-5 lg:grid-cols-[220px_1fr] items-start">
+                  <div className="rounded-xl overflow-hidden border border-[var(--border)] bg-[var(--surface-active)]">
+                    <img src={getListingImage(entry)} alt={entry.title} className="h-44 w-full object-cover" />
+                  </div>
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div>
                     <h4>{entry.title}</h4>
                     <p className="text-sm text-[var(--text-tertiary)] mt-1">
                       {entry.id} • {formatLabel(entry.resourceType)} • {entry.factoryName} • {entry.city}
@@ -425,25 +435,26 @@ const ListingsInventory = () => {
                     <p className="text-xs text-[var(--text-muted)] mt-1">
                       Updated {formatDate(entry.updatedAt)} • Created {formatDate(entry.createdAt)}
                     </p>
-                  </div>
+                    </div>
 
-                  <div className="flex gap-2 flex-wrap">
-                    <button className="btn btn-secondary btn-small" onClick={() => handleBumpVersion(entry)} disabled={!canCreateDraft}>
-                      <Save size={14} /> New Version
-                    </button>
-                    <button className="btn btn-secondary btn-small" onClick={() => handleStatusChange(entry, 'pending approval')} disabled={!canCreateDraft}>
-                      Submit
-                    </button>
-                    {isAdmin ? (
-                      <>
-                        <button className="btn btn-primary btn-small" onClick={() => handleStatusChange(entry, 'approved')}>
-                          Approve
-                        </button>
-                        <button className="btn btn-secondary btn-small" onClick={() => handleStatusChange(entry, 'rejected')}>
-                          Reject
-                        </button>
-                      </>
-                    ) : null}
+                    <div className="flex gap-2 flex-wrap">
+                      <button className="btn btn-secondary btn-small" onClick={() => handleBumpVersion(entry)} disabled={!canCreateDraft}>
+                        <Save size={14} /> New Version
+                      </button>
+                      <button className="btn btn-secondary btn-small" onClick={() => handleStatusChange(entry, 'pending approval')} disabled={!canCreateDraft}>
+                        Submit
+                      </button>
+                      {isAdmin ? (
+                        <>
+                          <button className="btn btn-primary btn-small" onClick={() => handleStatusChange(entry, 'approved')}>
+                            Approve
+                          </button>
+                          <button className="btn btn-secondary btn-small" onClick={() => handleStatusChange(entry, 'rejected')}>
+                            Reject
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
 

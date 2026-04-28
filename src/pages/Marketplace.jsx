@@ -1,14 +1,27 @@
 import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Grid3x3, List, MapPin } from 'lucide-react';
+import { Search, Grid3x3, List, MapPin, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 import EmptyState from '../components/EmptyState';
 import LoadingSkeleton from '../components/LoadingSkeleton';
+import { marketplaceSeed } from '../services/opsData';
+import { useAuth } from '../contexts/AuthContext';
+import { createDealRecord, logClientEvent } from '../services/liveCollections';
+import { validateDealCreation } from '../services/validation';
+import { subscribeToMarketplaceListings } from '../services/listingsService';
 
 const Marketplace = () => {
+  const { user } = useAuth();
   const [view, setView] = useState('grid');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedListing, setSelectedListing] = useState(null);
+  const [offerAmount, setOfferAmount] = useState('');
+  const [offerNotes, setOfferNotes] = useState('');
+  const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
+  const [liveListings, setLiveListings] = useState([]);
+  const [marketplaceLive, setMarketplaceLive] = useState(false);
   const [searchPlaceholders] = useState([
     'Search fabric scraps...',
     'Find idle machines...',
@@ -25,21 +38,27 @@ const Marketplace = () => {
   }, [searchPlaceholders.length]);
 
   React.useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 550);
-    return () => clearTimeout(timer);
+    const unsubscribe = subscribeToMarketplaceListings(
+      (rows) => {
+        setLiveListings(rows);
+        setMarketplaceLive(true);
+        setIsLoading(false);
+      },
+      () => {
+        setMarketplaceLive(false);
+        setIsLoading(false);
+      },
+    );
+
+    const timer = setTimeout(() => setIsLoading(false), 800);
+
+    return () => {
+      clearTimeout(timer);
+      unsubscribe();
+    };
   }, []);
 
-  const listings = useMemo(
-    () => [
-      { id: 1, title: 'Cotton Fabric Scraps', city: 'Tiruppur', price: 450, emoji: '🧵', distance: 0 },
-      { id: 2, title: 'Idle Dyeing Machine', city: 'Surat', price: 1200, emoji: '⚙️', distance: 125 },
-      { id: 3, title: 'Skilled Tailors Available', city: 'Bangalore', price: 800, emoji: '👷', distance: 220 },
-      { id: 4, title: 'Reactive Dyes (500L)', city: 'Panipat', price: 650, emoji: '🎨', distance: 85 },
-      { id: 5, title: 'Refrigerated Truck', city: 'Ludhiana', price: 2000, emoji: '🚛', distance: 320 },
-      { id: 6, title: 'Fabric Waste Collection', city: 'Coimbatore', price: 520, emoji: '🧵', distance: 150 },
-    ],
-    [],
-  );
+  const listings = useMemo(() => (marketplaceLive && liveListings.length ? liveListings : marketplaceSeed), [liveListings, marketplaceLive]);
 
   const filters = useMemo(
     () => ['All', 'Fabric', 'Machines', 'Workers', 'Chemicals', 'Transport'],
@@ -60,6 +79,84 @@ const Marketplace = () => {
       return matchesSearch && matchesFilter;
     });
   }, [activeFilter, listings, searchTerm]);
+
+  const listingPrice = (listing) => Number(listing.price ?? listing.pricePerUnit ?? 0);
+  const listingDistance = (listing) => Number(listing.distance ?? listing.distanceKm ?? 0);
+  const listingImage = (listing) => listing.coverImage || listing.mediaUrls?.[0] || '';
+  const listingQuantity = (listing) => listing.quantity && listing.unit ? `${listing.quantity} ${listing.unit}` : listing.quantity;
+
+  const handleMakeOffer = (listing) => {
+    if (!user) {
+      toast.error('Please log in to make an offer');
+      return;
+    }
+    setSelectedListing(listing);
+    setOfferAmount(listingPrice(listing) || '');
+    setOfferNotes('');
+  };
+
+  const handleSubmitOffer = async () => {
+    if (!selectedListing) {
+      toast.error('No listing selected');
+      return;
+    }
+
+    if (!user) {
+      toast.error('Please log in to make an offer');
+      return;
+    }
+
+    // Validate deal creation with comprehensive checks
+    const validation = validateDealCreation(
+      {
+        listing: selectedListing,
+        offer: parseFloat(offerAmount),
+        quantity: 1,
+      },
+      user.uid
+    );
+
+    if (!validation.isValid) {
+      void logClientEvent('failed_offer_submission', {
+        reason: 'client_validation_failed',
+        errors: validation.errors,
+        listingId: selectedListing?.id || null,
+        buyerId: user?.uid || null,
+      });
+      validation.errors.forEach((error) => toast.error(error));
+      return;
+    }
+
+    setIsSubmittingOffer(true);
+    try {
+      const offer = parseFloat(offerAmount);
+
+      // Create deal record with proper factory names
+      await createDealRecord(
+        {
+          listing: {
+            ...selectedListing,
+            ownerId: selectedListing.ownerId || selectedListing.id,
+          },
+          offer,
+          quantity: 1,
+          notes: offerNotes,
+          title: selectedListing.title,
+        },
+        user.uid
+      );
+
+      toast.success(`✅ Offer submitted! ${selectedListing.factoryName} will review your offer.`);
+      setSelectedListing(null);
+      setOfferAmount('');
+      setOfferNotes('');
+    } catch (error) {
+      console.error('Error creating offer:', error);
+      toast.error(error?.message || 'Failed to create offer. Please try again.');
+    } finally {
+      setIsSubmittingOffer(false);
+    }
+  };
 
   return (
     <div className="page page-marketplace min-h-screen pt-32 pb-20">
@@ -192,29 +289,121 @@ const Marketplace = () => {
               whileHover={{ y: -6, scale: 1.02 }}
               className="card overflow-hidden group cursor-pointer"
             >
-              <div className="h-24 bg-gradient-to-br from-[var(--primary)] via-[var(--secondary)] to-[#ec4899] flex items-center justify-center text-4xl group-hover:scale-110 transition-transform">
-                {listing.emoji}
+              <div className="relative h-44 overflow-hidden">
+                <img src={listingImage(listing)} alt={listing.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
+                <div className="absolute left-4 right-4 bottom-4 flex items-end justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.24em] text-white/75 font-bold">{listing.category}</p>
+                    <h4 className="line-clamp-2 mt-1 font-black text-white text-lg">{listing.title}</h4>
+                  </div>
+                  <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold text-white backdrop-blur-sm">
+                    {listing.status}
+                  </span>
+                </div>
               </div>
               <div className="pt-4">
-                <h4 className="line-clamp-2 mb-2 font-bold text-[var(--text)]">{listing.title}</h4>
-                <div className="flex items-center gap-1 text-[var(--text-tertiary)] text-sm mb-4 font-medium">
+                <div className="flex items-center gap-1 text-[var(--text-tertiary)] text-sm mb-3 font-medium">
                   <MapPin size={14} />
                   {listing.city}
                 </div>
-                <div className="flex items-baseline gap-2 mb-4">
-                  <span className="text-2xl font-black text-[var(--primary)]">₹{listing.price}</span>
-                  <span className="text-xs text-[var(--text-muted)]">/ unit</span>
+                <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
+                  <div className="rounded-lg bg-[var(--surface-active)] p-3">
+                    <p className="text-[var(--text-tertiary)] text-xs uppercase tracking-wider">Price</p>
+                    <p className="text-xl font-black text-[var(--text)] mt-1">₹{listingPrice(listing)}</p>
+                  </div>
+                  <div className="rounded-lg bg-[var(--surface-active)] p-3">
+                    <p className="text-[var(--text-tertiary)] text-xs uppercase tracking-wider">Match</p>
+                    <p className="text-xl font-black text-[var(--primary)] mt-1">{listing.matchScore}%</p>
+                  </div>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  <span className="badge badge-primary text-xs font-bold">
-                    📍 {listing.distance}km
-                  </span>
-                  <span className="badge badge-secondary text-xs font-bold">⏱️ Exp 3d</span>
+                  <span className="badge badge-primary text-xs font-bold">📍 {listingDistance(listing)}km</span>
+                  <span className="badge badge-secondary text-xs font-bold">{listingQuantity(listing)}</span>
                 </div>
+                <button
+                  onClick={() => handleMakeOffer(listing)}
+                  className="mt-4 w-full btn btn-primary font-bold text-sm"
+                >
+                  💼 Make Offer
+                </button>
               </div>
             </motion.div>
             ))}
           </motion.div>
+        )}
+
+        {/* Offer Modal */}
+        {selectedListing && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[var(--surface)] rounded-lg max-w-md w-full p-6 shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-black">💼 Make an Offer</h3>
+                <button
+                  onClick={() => setSelectedListing(null)}
+                  className="p-2 hover:bg-[var(--surface-active)] rounded-lg transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="mb-4 p-4 bg-[var(--surface-active)] rounded-lg">
+                <p className="text-[var(--text-tertiary)] text-sm mb-1">Offering on:</p>
+                <p className="font-bold text-lg">{selectedListing.title}</p>
+                <p className="text-sm text-[var(--text-tertiary)] mt-1">
+                  from {selectedListing.factoryName}
+                </p>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-semibold mb-2">
+                  Your Offer Price (₹)
+                </label>
+                <input
+                  type="number"
+                  value={offerAmount}
+                  onChange={(e) => setOfferAmount(e.target.value)}
+                  placeholder="Enter your offer price"
+                  className="w-full px-4 py-3 rounded-lg bg-[var(--surface-active)] border border-[var(--border)] focus:border-[var(--primary)] outline-none transition-colors font-semibold"
+                />
+                <p className="text-xs text-[var(--text-tertiary)] mt-1">
+                  Listed price: ₹{listingPrice(selectedListing)}
+                </p>
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm font-semibold mb-2">Notes (optional)</label>
+                <textarea
+                  value={offerNotes}
+                  onChange={(e) => setOfferNotes(e.target.value)}
+                  placeholder="Any additional notes for the seller..."
+                  rows={3}
+                  className="w-full px-4 py-3 rounded-lg bg-[var(--surface-active)] border border-[var(--border)] focus:border-[var(--primary)] outline-none transition-colors resize-none"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setSelectedListing(null)}
+                  className="flex-1 btn btn-secondary font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmitOffer}
+                  disabled={isSubmittingOffer}
+                  className="flex-1 btn btn-primary font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmittingOffer ? '⏳ Submitting...' : '✅ Submit Offer'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </div>
     </div>

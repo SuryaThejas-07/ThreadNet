@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, Phone, RefreshCw, Truck, XCircle } from 'lucide-react';
+import { CheckCircle2, Phone, RefreshCw, Truck, XCircle, AlertCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { logisticsSeed } from '../services/opsData';
 import ErrorBanner from '../components/ErrorBanner';
 import { subscribeToOperationsData, updateOperationRecord } from '../services/liveCollections';
 import SearchFilterBar from '../components/SearchFilterBar';
 import { useAuth } from '../contexts/AuthContext';
+import { ROLES, normalizeRole } from '../constants/roles';
 
 const formatInrCompact = (value) => {
   try {
@@ -22,27 +24,34 @@ const formatInrCompact = (value) => {
 
 const OperationsLogistics = () => {
   const { user } = useAuth();
-  const role = String(user?.role || user?.accountType || '').trim().toLowerCase();
-  const canMarkDelivered = role === 'logistics_provider' || role === 'administrator';
-  const isAdmin = role === 'administrator';
+  const role = normalizeRole(user?.role || user?.accountType || '');
+  const canMarkDelivered = role === ROLES.LOGISTICS_PROVIDER || role === ROLES.ADMINISTRATOR;
+  const isAdmin = role === ROLES.ADMINISTRATOR;
   const [liveOperations, setLiveOperations] = useState([]);
+  const [operationsLive, setOperationsLive] = useState(false);
   const [operationsError, setOperationsError] = useState('');
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState('All');
 
   useEffect(() => {
+    const userId = user?.uid;
+    const organization = user?.organization || '';
     const unsubscribe = subscribeToOperationsData(
-      (rows) => setLiveOperations(rows),
+      ({ rows, isLive }) => {
+        setLiveOperations(rows);
+        setOperationsLive(Boolean(isLive));
+      },
       (error) => {
         console.error(error);
         setOperationsError(`Live operations failed to load. ${error?.message || 'Showing fallback demo data.'}`);
       },
+      { userId, role, organization },
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [user?.uid, user?.organization, role]);
 
-  const operations = liveOperations.length ? liveOperations : logisticsSeed;
+  const operations = operationsLive ? liveOperations : logisticsSeed;
   const filteredOperations = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     return operations.filter((row) => {
@@ -58,14 +67,39 @@ const OperationsLogistics = () => {
   const primaryRoute = filteredOperations[0] || null;
 
   const setOperationPatch = (id, patch, failureMessage) => {
-    updateOperationRecord(id, patch).catch((error) => {
-      console.error(error);
-      setOperationsError(`${failureMessage} ${error?.message || ''}`);
-    });
+    // Validate patch data
+    if (!id || id.trim() === '') {
+      toast.error('Operation ID is required');
+      return;
+    }
+
+    if (!patch || typeof patch !== 'object') {
+      toast.error('Invalid operation update data');
+      return;
+    }
+
+    // Validate stage transitions
+    const validStages = ['Pickup Scheduled', 'In Transit', 'Delivered'];
+    if (patch.stage && !validStages.includes(patch.stage)) {
+      toast.error(`Invalid stage: ${patch.stage}`);
+      return;
+    }
+
+    updateOperationRecord(id, { ...patch, updatedAt: new Date() })
+      .then(() => {
+        const action = patch.stage ? `Status changed to ${patch.stage}` : 'Operation updated';
+        toast.success(`✅ ${action} successfully`);
+      })
+      .catch((error) => {
+        console.error('Operation update failed:', error);
+        const errorMsg = `${failureMessage} ${error?.message || ''}`;
+        setOperationsError(errorMsg);
+        toast.error(errorMsg);
+      });
   };
 
   const markVerified = (id) => {
-    setOperationPatch(id, { exception: 'None', stage: 'Delivered', milestone: 'Proof Verified' }, `Could not update route ${id}.`);
+    setOperationPatch(id, { exception: 'None', stage: 'Delivered', milestone: 'Proof Verified' }, `Could not mark delivery as verified for route ${id}.`);
   };
 
   const markRejected = (id) => {
@@ -73,22 +107,46 @@ const OperationsLogistics = () => {
   };
 
   const assignTruck = (id) => {
-    setOperationPatch(id, { stage: 'Driver Assigned', milestone: 'Truck Assigned', exception: 'None' }, `Could not assign truck for ${id}.`);
+    setOperationPatch(id, { stage: 'In Transit', milestone: 'Truck Assigned', exception: 'None' }, `Could not assign truck for ${id}.`);
   };
 
   const cycleStatus = (row) => {
-    const nextStage = row.stage === 'Pickup Scheduled' ? 'In Transit' : row.stage === 'In Transit' ? 'Delivered' : 'Pickup Scheduled';
-    const nextMilestone = nextStage === 'Delivered' ? 'Proof Verified' : nextStage === 'In Transit' ? 'Driver Moving' : 'Pickup Scheduled';
-    setOperationPatch(row.id, { stage: nextStage, milestone: nextMilestone, exception: row.exception === 'None' ? 'None' : row.exception }, `Could not update status for ${row.id}.`);
+    // Validate stage before cycling
+    if (!row.stage) {
+      toast.error('Operation stage is missing');
+      return;
+    }
+
+    // Stage progression: Pickup → In Transit → Delivered → Pickup (cycle)
+    let nextStage, nextMilestone, nextException;
+
+    if (row.stage === 'Pickup Scheduled') {
+      nextStage = 'In Transit';
+      nextMilestone = 'Driver Moving';
+      nextException = 'None';
+    } else if (row.stage === 'In Transit') {
+      nextStage = 'Delivered';
+      nextMilestone = 'Proof Verified';
+      nextException = 'None';
+    } else {
+      nextStage = 'Pickup Scheduled';
+      nextMilestone = 'Order Received';
+      nextException = 'None';
+    }
+
+    setOperationPatch(row.id, { stage: nextStage, milestone: nextMilestone, exception: nextException }, `Could not update status for ${row.id}.`);
   };
 
   const callRoute = (row) => {
     const phone = row.driverPhone || row.dispatcherPhone;
     if (phone) {
       window.open(`tel:${phone}`, '_self');
+      toast.success(`Calling ${row.driverName || 'driver'}...`);
       return;
     }
-    setOperationsError(`No phone number saved for ${row.id}. Add driverPhone or dispatcherPhone in Firestore to enable calling.`);
+    const errorMsg = `No phone number saved for ${row.id}. Add driverPhone or dispatcherPhone in Firestore to enable calling.`;
+    setOperationsError(errorMsg);
+    toast.error(errorMsg);
   };
 
   return (
@@ -115,8 +173,8 @@ const OperationsLogistics = () => {
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {user?.roleLabel ? <span className="badge badge-secondary">{user.roleLabel}</span> : null}
-            <span className={`badge ${liveOperations.length ? 'badge-primary' : 'badge-secondary'}`}>
-              {liveOperations.length ? 'Live Firestore data' : 'Demo fallback data'}
+            <span className={`badge ${operationsLive ? 'badge-primary' : 'badge-secondary'}`}>
+              {operationsLive ? 'Firebase live' : 'Demo fallback'}
             </span>
             <span className="badge badge-secondary">{filteredOperations.length} routes visible</span>
           </div>
@@ -148,10 +206,34 @@ const OperationsLogistics = () => {
           </div>
           {primaryRoute ? (
             <>
-              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-active)] p-3 mb-4">
-                <p className="font-bold text-[var(--text)]">{primaryRoute.route}</p>
-                <p className="text-xs text-[var(--text-tertiary)] mt-1">{primaryRoute.stage} • {primaryRoute.milestone} • {primaryRoute.eta}</p>
-                <p className="text-xs text-[var(--text-muted)] mt-1">{primaryRoute.carrierName || 'Carrier'} • {primaryRoute.driverName || 'Driver'} • {primaryRoute.truckNumber || 'Truck pending'}</p>
+              <div className="relative overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-active)] mb-4">
+                <img src={primaryRoute.routeImageUrl || ''} alt={primaryRoute.route} className="h-40 w-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent" />
+                <div className="absolute left-4 right-4 bottom-4 flex items-end justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.24em] text-white/75 font-bold">Primary route</p>
+                    <p className="text-lg font-black text-white mt-1">{primaryRoute.route}</p>
+                  </div>
+                  <span className="badge badge-primary">{primaryRoute.stage}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mb-4 text-sm">
+                <div className="rounded-lg bg-[var(--surface-active)] p-3">
+                  <p className="text-xs text-[var(--text-tertiary)]">Milestone</p>
+                  <p className="font-bold mt-1">{primaryRoute.milestone}</p>
+                </div>
+                <div className="rounded-lg bg-[var(--surface-active)] p-3">
+                  <p className="text-xs text-[var(--text-tertiary)]">ETA</p>
+                  <p className="font-bold mt-1">{primaryRoute.eta}</p>
+                </div>
+                <div className="rounded-lg bg-[var(--surface-active)] p-3 flex items-center gap-3 col-span-2">
+                  <img src={primaryRoute.routeImageUrl || ''} alt={primaryRoute.driverName || primaryRoute.route} className="h-12 w-12 rounded-full object-cover border border-[var(--border)]" />
+                  <div>
+                    <p className="text-xs text-[var(--text-tertiary)] uppercase tracking-wider">Carrier</p>
+                    <p className="font-semibold text-[var(--text)]">{primaryRoute.carrierName || 'Assigned carrier'}</p>
+                    <p className="text-xs text-[var(--text-muted)]">{primaryRoute.driverName || 'Driver assigned'} • {primaryRoute.truckNumber || 'Truck pending'}</p>
+                  </div>
+                </div>
               </div>
               <div className="grid grid-2 gap-2">
                 <button type="button" className="btn btn-primary" onClick={() => markVerified(primaryRoute.id)} disabled={!canMarkDelivered}>
@@ -200,9 +282,12 @@ const OperationsLogistics = () => {
           {filteredOperations.map((row) => (
             <motion.div key={row.id} className="card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
               <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div>
+                <div className="flex items-center gap-3">
+                  <img src={row.routeImageUrl || ''} alt={row.route} className="h-14 w-14 rounded-xl object-cover border border-[var(--border)]" />
+                  <div>
                   <h4>{row.route}</h4>
                   <p className="text-sm text-[var(--text-tertiary)] mt-1">{row.id}</p>
+                  </div>
                 </div>
                 <span className={`badge ${row.exception === 'None' ? 'badge-primary' : 'badge-danger'}`}>
                   {row.exception === 'None' ? 'On Track' : row.exception}

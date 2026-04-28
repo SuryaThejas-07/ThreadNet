@@ -53,3 +53,79 @@ export const validateResourceDetails = (values) => {
 
   return errors;
 };
+
+// ===== DEAL VALIDATION =====
+export const validateDealCreation = (payload, buyerId) => {
+  const errors = [];
+
+  // User validation
+  if (!buyerId || buyerId.trim() === '') {
+    errors.push('You must be logged in to make an offer');
+  }
+
+  // Listing validation
+  if (!payload.listing) {
+    errors.push('No listing selected');
+  } else {
+    if (!payload.listing.id) errors.push('Listing is missing ID');
+    if (!payload.listing.ownerId) errors.push('Seller information is incomplete');
+    if (!payload.listing.title) errors.push('Listing title is missing');
+    if (!payload.listing.factoryName) errors.push('Factory name is missing');
+  }
+
+  // Offer validation
+  if (!payload.offer || payload.offer <= 0) {
+    errors.push('Offer must be greater than ₹0');
+  }
+  if (typeof payload.offer !== 'number') {
+    errors.push('Offer must be a valid number');
+  }
+
+  // Quantity validation
+  if (!payload.quantity || payload.quantity <= 0) {
+    errors.push('Quantity must be greater than 0');
+  }
+
+  return { isValid: errors.length === 0, errors };
+};
+
+// ===== OPERATION VALIDATION =====
+export const validateOperationCreation = (dealData, assignedToId) => {
+  const errors = [];
+
+  // Deal validation
+  if (!dealData) {
+    errors.push('No deal data provided for operation');
+  } else {
+    if (!dealData.id) errors.push('Deal ID is missing');
+    if (!dealData.city) errors.push('Location is missing');
+    if (!dealData.itemName) errors.push('Item name is missing');
+    if (!dealData.seller) errors.push('Seller information is incomplete');
+    if (!dealData.buyer) errors.push('Buyer information is incomplete');
+  }
+
+  return { isValid: errors.length === 0, errors };
+};
+
+// ===== LISTING VALIDATION =====
+export const validateListing = (listing) => {
+  const errors = [];
+
+  if (!listing.title || listing.title.trim() === '') {
+    errors.push('Title is required');
+  }
+  if (!listing.factoryName || listing.factoryName.trim() === '') {
+    errors.push('Factory name is required');
+  }
+  if (!listing.city || listing.city.trim() === '') {
+    errors.push('City is required');
+  }
+  if (!listing.price || listing.price <= 0) {
+    errors.push('Price must be greater than 0');
+  }
+  if (!listing.quantity || listing.quantity <= 0) {
+    errors.push('Quantity must be greater than 0');
+  }
+
+  return { isValid: errors.length === 0, errors };
+};

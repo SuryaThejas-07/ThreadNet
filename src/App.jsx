@@ -11,6 +11,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { useTheme } from './contexts/ThemeContext';
 import { useAuth } from './contexts/AuthContext';
 import { useI18n } from './contexts/I18nContext';
+import { ROLES, normalizeRole } from './constants/roles';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -82,29 +83,29 @@ const Navbar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const currentRole = String(user?.role || user?.accountType || '').trim().toLowerCase();
+  const currentRole = normalizeRole(user?.role || user?.accountType || '');
 
   const navLinks = useMemo(() => {
     const links = [{ name: t('nav.dashboard', 'Dashboard'), path: '/dashboard' }];
 
-    if (currentRole === 'factory_owner') {
+    if (currentRole === ROLES.FACTORY_OWNER) {
       links.push(
+        { name: t('nav.marketplace', 'Marketplace'), path: '/marketplace' },
         { name: t('nav.inventory', 'Inventory'), path: '/inventory' },
         { name: t('nav.deals', 'Deals'), path: '/deals' },
-        { name: t('nav.analytics', 'Analytics'), path: '/analytics' },
       );
     }
 
-    if (currentRole === 'logistics_provider') {
+    if (currentRole === ROLES.LOGISTICS_PROVIDER) {
       links.push(
-        { name: t('nav.deals', 'Deals'), path: '/deals' },
+        { name: t('nav.marketplace', 'Marketplace'), path: '/marketplace' },
         { name: t('nav.ops', 'Ops'), path: '/operations' },
-        { name: t('nav.analytics', 'Analytics'), path: '/analytics' },
       );
     }
 
-    if (currentRole === 'administrator') {
+    if (currentRole === ROLES.ADMINISTRATOR) {
       links.push(
+        { name: t('nav.marketplace', 'Marketplace'), path: '/marketplace' },
         { name: t('nav.inventory', 'Inventory'), path: '/inventory' },
         { name: t('nav.deals', 'Deals'), path: '/deals' },
         { name: t('nav.ops', 'Ops'), path: '/operations' },
@@ -278,6 +279,7 @@ const ProtectedPage = ({ children, roles }) => {
 const App = () => {
   const [showLoader, setShowLoader] = useState(true);
   const location = useLocation();
+  const { isAuthenticated, loading } = useAuth();
 
   useEffect(() => {
     const timer = setTimeout(() => setShowLoader(false), 1500);
@@ -316,7 +318,7 @@ const App = () => {
             <Route
               path="/dashboard"
               element={
-                <ProtectedPage roles={['factory_owner', 'logistics_provider', 'administrator']}>
+                <ProtectedPage roles={[ROLES.FACTORY_OWNER, ROLES.LOGISTICS_PROVIDER, ROLES.ADMINISTRATOR]}>
                   <Dashboard />
                 </ProtectedPage>
               }
@@ -324,7 +326,7 @@ const App = () => {
             <Route
               path="/marketplace"
               element={
-                <ProtectedPage roles={['factory_owner', 'logistics_provider', 'administrator']}>
+                <ProtectedPage roles={[ROLES.FACTORY_OWNER, ROLES.LOGISTICS_PROVIDER, ROLES.ADMINISTRATOR]}>
                   <Marketplace />
                 </ProtectedPage>
               }
@@ -332,7 +334,7 @@ const App = () => {
             <Route
               path="/inventory"
               element={
-                <ProtectedPage roles={['factory_owner', 'administrator']}>
+                <ProtectedPage roles={[ROLES.FACTORY_OWNER, ROLES.ADMINISTRATOR]}>
                   <ListingsInventory />
                 </ProtectedPage>
               }
@@ -340,7 +342,7 @@ const App = () => {
             <Route
               path="/deals"
               element={
-                <ProtectedPage roles={['factory_owner', 'logistics_provider', 'administrator']}>
+                <ProtectedPage roles={[ROLES.FACTORY_OWNER, ROLES.ADMINISTRATOR]}>
                   <DealLifecycle />
                 </ProtectedPage>
               }
@@ -348,7 +350,7 @@ const App = () => {
             <Route
               path="/analytics"
               element={
-                <ProtectedPage roles={['administrator', 'factory_owner', 'logistics_provider']}>
+                <ProtectedPage roles={[ROLES.ADMINISTRATOR]}>
                   <Analytics />
                 </ProtectedPage>
               }
@@ -356,7 +358,7 @@ const App = () => {
             <Route
               path="/operations"
               element={
-                <ProtectedPage roles={['logistics_provider', 'administrator']}>
+                <ProtectedPage roles={[ROLES.LOGISTICS_PROVIDER, ROLES.ADMINISTRATOR]}>
                   <OperationsLogistics />
                 </ProtectedPage>
               }
@@ -364,7 +366,7 @@ const App = () => {
             <Route
               path="/admin"
               element={
-                <ProtectedPage roles={['administrator']}>
+                <ProtectedPage roles={[ROLES.ADMINISTRATOR]}>
                   <AdminConsole />
                 </ProtectedPage>
               }
@@ -372,7 +374,7 @@ const App = () => {
             <Route
               path="/list"
               element={
-                <ProtectedPage roles={['factory_owner', 'administrator']}>
+                <ProtectedPage roles={[ROLES.FACTORY_OWNER, ROLES.ADMINISTRATOR]}>
                   <ListResource />
                 </ProtectedPage>
               }
@@ -384,9 +386,15 @@ const App = () => {
             <Route
               path="/login"
               element={
-                <PageWrapper>
-                  <Login />
-                </PageWrapper>
+                loading ? (
+                  <RouteFallback />
+                ) : isAuthenticated ? (
+                  <Navigate to="/dashboard" replace />
+                ) : (
+                  <PageWrapper>
+                    <Login />
+                  </PageWrapper>
+                )
               }
             />
             <Route path="*" element={<Navigate to="/" replace />} />

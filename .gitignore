@@ -14,7 +14,7 @@ threadnet-22ab4-firebase-adminsdk-fbsvc-bf8daa44a4.json
 firebase-adminsdk*.json
 serviceAccountKey.json
 *.key.json
-
+.firebase/
 # ============================================================================
 # NODE & DEPENDENCIES
 # ============================================================================

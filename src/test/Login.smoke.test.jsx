@@ -5,14 +5,17 @@ import { MemoryRouter } from 'react-router-dom';
 import Login from '../pages/Login';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { AuthProvider } from '../contexts/AuthContext';
+import { I18nProvider } from '../contexts/I18nContext';
 
 const renderLogin = () => {
   return render(
     <MemoryRouter>
       <ThemeProvider>
-        <AuthProvider>
-          <Login />
-        </AuthProvider>
+        <I18nProvider>
+          <AuthProvider>
+            <Login />
+          </AuthProvider>
+        </I18nProvider>
       </ThemeProvider>
     </MemoryRouter>,
   );
@@ -24,7 +27,9 @@ describe('Login smoke flow', () => {
     renderLogin();
 
     await user.click(screen.getByRole('button', { name: /select factory owner/i }));
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
+    const submitButton = document.querySelector('button[type="submit"]');
+    expect(submitButton).toBeTruthy();
+    await user.click(submitButton);
 
     expect(screen.getByText(/email is required/i)).toBeInTheDocument();
     expect(screen.getByText(/password is required/i)).toBeInTheDocument();

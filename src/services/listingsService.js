@@ -1,4 +1,4 @@
-import { collection, addDoc, onSnapshot, orderBy, query, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, orderBy, query, doc, updateDoc, serverTimestamp, where } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase';
 
@@ -15,6 +15,7 @@ const mapListingDoc = (snapshotDoc) => {
     title: data.title || 'Untitled Listing',
     resourceType: data.resourceType || data.type || 'fabric',
     factoryName: data.factoryName || 'Unknown Factory',
+    ownerId: data.ownerId || '', // Owner user ID
     city: data.city || 'Unknown',
     quantity: data.quantity ?? 'TBD',
     unit: data.unit || '',
@@ -35,14 +36,40 @@ const mapListingDoc = (snapshotDoc) => {
   };
 };
 
-export const subscribeToListings = (onNext, onError) => {
+export const subscribeToListings = (onNext, onError, { userId = null, role = null } = {}) => {
+  const isAdmin = role === 'administrator';
+  
+  // If admin, show all listings
+  if (isAdmin) {
+    const listingQuery = query(collection(db, LISTINGS_COLLECTION), orderBy('createdAt', 'desc'));
+    return onSnapshot(
+      listingQuery,
+      (snapshot) => {
+        const listings = snapshot.docs.map(mapListingDoc);
+        onNext(listings);
+      },
+      (error) => {
+        onError(error);
+      },
+    );
+  }
+  
+  // For factory owners, show only their listings (no fallback)
   const listingQuery = query(collection(db, LISTINGS_COLLECTION), orderBy('createdAt', 'desc'));
-
+  
   return onSnapshot(
     listingQuery,
     (snapshot) => {
-      const listings = snapshot.docs.map(mapListingDoc);
-      onNext(listings);
+      const allListings = snapshot.docs.map(mapListingDoc);
+      
+      // Filter by owner ONLY - strict filtering, no fallback
+      if (!userId) {
+        onNext([]); // No user context = no listings
+        return;
+      }
+      
+      const filtered = allListings.filter((listing) => listing.ownerId === userId);
+      onNext(filtered); // Show filtered or empty, NEVER show all
     },
     (error) => {
       onError(error);
@@ -50,7 +77,23 @@ export const subscribeToListings = (onNext, onError) => {
   );
 };
 
-export const createListingDraft = async (payload) => {
+export const subscribeToMarketplaceListings = (onNext, onError) => {
+  const listingQuery = query(
+    collection(db, LISTINGS_COLLECTION),
+    where('status', 'in', ['active', 'approved']),
+    orderBy('createdAt', 'desc'),
+  );
+
+  return onSnapshot(
+    listingQuery,
+    (snapshot) => {
+      onNext(snapshot.docs.map(mapListingDoc));
+    },
+    onError,
+  );
+};
+
+export const createListingDraft = async (payload, userId) => {
   return addDoc(collection(db, LISTINGS_COLLECTION), {
     title: payload.title,
     resourceType: payload.resourceType,
@@ -70,6 +113,7 @@ export const createListingDraft = async (payload) => {
     monthlySales30d: Array.isArray(payload.monthlySales30d) ? payload.monthlySales30d : [],
     monthlyRevenueInr: Number(payload.monthlyRevenueInr || 0),
     version: 1,
+    ownerId: userId || '', // CRITICAL: Store owner ID
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

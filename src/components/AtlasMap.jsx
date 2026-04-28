@@ -38,7 +38,7 @@ const AtlasMap = ({ center = defaultCenter, zoom = 4, markers = [], activeMarker
     mapRef.current = new maplibregl.Map({
       container: containerRef.current,
       style,
-      center: [center.lng || defaultCenter.lng, center.lat || defaultCenter.lat],
+      center: [defaultCenter.lng, defaultCenter.lat],
       zoom,
       attributionControl: true,
     });
@@ -121,9 +121,11 @@ const AtlasMap = ({ center = defaultCenter, zoom = 4, markers = [], activeMarker
   }, [activeMarkerName, markers, onMarkerClick, zoom]);
 
   useEffect(() => {
-    if (!mapRef.current || !center) return;
-    mapRef.current.easeTo({ center: [center.lng || defaultCenter.lng, center.lat || defaultCenter.lat], duration: 500 });
-  }, [center.lat, center.lng]);
+    if (!mapRef.current) return;
+    const lng = center?.lng || defaultCenter.lng;
+    const lat = center?.lat || defaultCenter.lat;
+    mapRef.current.easeTo({ center: [lng, lat], duration: 500 });
+  }, [center?.lat, center?.lng]);
 
   return <div ref={containerRef} className="atlas-map" aria-label="Interactive Atlas map" />;
 };
