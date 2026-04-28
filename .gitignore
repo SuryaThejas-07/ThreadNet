@@ -1,0 +1,53 @@
+# ============================================================================
+# ENVIRONMENT & SECRETS
+# ============================================================================
+.env
+.env.local
+.env.*.local
+
+# ============================================================================
+# FIREBASE CREDENTIALS (⚠️  SENSITIVE - NEVER COMMIT)
+# ============================================================================
+# Service account JSON files contain private keys
+# Keep these files locally and NEVER share or commit to version control
+threadnet-22ab4-firebase-adminsdk-fbsvc-bf8daa44a4.json
+firebase-adminsdk*.json
+serviceAccountKey.json
+*.key.json
+
+# ============================================================================
+# NODE & DEPENDENCIES
+# ============================================================================
+node_modules/
+package-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============================================================================
+# BUILD & DIST
+# ============================================================================
+dist/
+.vite/
+
+# ============================================================================
+# SYSTEM FILES
+# ============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ============================================================================
+# IDE & EDITOR
+# ============================================================================
+.vscode/*
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+.env.example
