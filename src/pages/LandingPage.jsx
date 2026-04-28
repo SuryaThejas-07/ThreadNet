@@ -78,13 +78,16 @@ const LandingPage = () => {
             className="flex gap-4 justify-center flex-wrap mb-16"
           >
             <button
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/demo')}
               className="btn btn-primary gap-2 text-base px-8 py-3 shadow-lg hover:shadow-xl"
             >
-              Enter Dashboard <ArrowRight size={20} />
+              View Live Demo <ArrowRight size={20} />
             </button>
-            <button className="btn btn-outline gap-2 text-base px-8 py-3">
-              🎬 Watch Demo
+            <button
+              onClick={() => navigate('/login')}
+              className="btn btn-outline gap-2 text-base px-8 py-3"
+            >
+              Sign In <ArrowRight size={20} />
             </button>
           </motion.div>
         </motion.div>
@@ -94,19 +97,19 @@ const LandingPage = () => {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.7, duration: 0.7 }}
-          className="grid grid-3 gap-6 mt-20"
+          className="grid grid-3 gap-6 mt-20 max-w-5xl mx-auto"
         >
           {stats.map((stat, i) => (
             <motion.div
               key={i}
               whileHover={{ y: -8, scale: 1.02 }}
-              className="card p-8 text-center group cursor-pointer"
+              className="card p-8 group cursor-pointer border-t-2 border-[var(--secondary)] bg-gradient-to-b from-[var(--surface-soft)] to-[var(--surface-active)]"
             >
-              <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">{stat.emoji}</div>
-              <p className="text-[var(--text-tertiary)] text-sm font-semibold uppercase tracking-wide mb-3">
+              <div className="text-5xl mb-5 group-hover:scale-110 transition-transform">{stat.emoji}</div>
+              <p className="text-[var(--text-tertiary)] text-xs font-semibold uppercase tracking-wide mb-3">
                 {stat.label}
               </p>
-              <h3 className="text-4xl font-black text-[var(--text)]">{stat.value}</h3>
+              <h3 className="text-3xl font-black text-[var(--text)]">{stat.value}</h3>
             </motion.div>
           ))}
         </motion.div>
@@ -157,7 +160,7 @@ const LandingPage = () => {
           </p>
         </motion.div>
 
-        <div className="grid grid-3 gap-8">
+        <div className="grid grid-3 gap-8 max-w-6xl mx-auto">
           {problems.map((problem, i) => (
             <motion.div
               key={i}
@@ -166,14 +169,16 @@ const LandingPage = () => {
               viewport={{ once: true }}
               transition={{ delay: i * 0.15, duration: 0.7 }}
               whileHover={{ y: -8 }}
-              className="card p-8 border-l-4 border-[var(--danger)]"
+              className="card p-8 border-t-2 border-[var(--danger)] flex flex-col justify-between min-h-96 bg-gradient-to-b from-[var(--surface-soft)] to-[var(--surface-active)]"
             >
-              <div className="w-14 h-14 rounded-xl bg-[var(--danger)]/15 flex-center mb-6">
-                <problem.icon className="text-[var(--danger)]" size={28} />
-              </div>
-              <h4 className="mb-3 text-xl font-bold">{problem.title}</h4>
-              <p className="text-[var(--text-tertiary)] text-sm leading-relaxed mb-6">{problem.desc}</p>
-              <div className="pt-6 border-t border-[var(--border)]">
+                <div>
+                  <div className="w-16 h-16 rounded-lg flex-center mb-6">
+                    <problem.icon className="text-[var(--danger)]" size={32} />
+                  </div>
+                  <h4 className="mb-3 text-lg font-bold text-[var(--text)]">{problem.title}</h4>
+                  <p className="text-[var(--text-secondary)] text-sm leading-relaxed">{problem.desc}</p>
+                </div>
+              <div className="pt-6 border-t border-[var(--border)] mt-6">
                 <p className="text-[var(--danger)] font-black text-lg">{problem.metric}</p>
               </div>
             </motion.div>
@@ -196,10 +201,10 @@ const LandingPage = () => {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => navigate('/list')}
+            onClick={() => navigate('/login')}
             className="btn btn-primary gap-2 text-base px-10 py-4 shadow-xl"
           >
-            List Your Resources Now <ArrowRight size={20} />
+            Get Started <ArrowRight size={20} />
           </motion.button>
         </motion.div>
       </section>

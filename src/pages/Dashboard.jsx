@@ -90,6 +90,22 @@ const buildIndexedPoints = (values, startIndex, totalPoints, min, max) => {
     .join(' ');
 };
 
+  const buildIndexedAreaPoints = (values, startIndex, totalPoints, min, max) => {
+    if (!values.length || totalPoints <= 1) return '';
+    const range = Math.max(max - min, 1);
+
+    const pointPairs = values.map((value, index) => {
+      const x = ((startIndex + index) / (totalPoints - 1)) * 100;
+      const y = 36 - ((value - min) / range) * 26;
+      return `${x},${y}`;
+    });
+
+    const firstX = ((startIndex / (totalPoints - 1)) * 100).toFixed(2);
+    const lastX = (((startIndex + values.length - 1) / (totalPoints - 1)) * 100).toFixed(2);
+
+    return `${pointPairs.join(' ')} ${lastX},40 ${firstX},40`;
+  };
+
 const getThresholdBadge = (score, options = {}) => {
   const { invert = false } = options;
 
@@ -951,6 +967,14 @@ const Dashboard = () => {
     monthlyMin,
     monthlyMax,
   );
+  const monthlyHistoryAreaPoints = buildIndexedAreaPoints(monthlySeries, 0, monthlyTotalPoints, monthlyMin, monthlyMax);
+  const monthlyForecastAreaPoints = buildIndexedAreaPoints(
+    monthlyForecast,
+    Math.max(monthlySeries.length - 1, 0),
+    monthlyTotalPoints,
+    monthlyMin,
+    monthlyMax,
+  );
   const monthlyTrend = Number(monthlySalesDemo.trendPercent || 0);
   const monthlyBaseConfidence = Math.round(Number(monthlySalesDemo.baseModelConfidence || monthlySalesDemo.confidence || 0) * 100);
   const monthlyConfidence = Math.round(Number(monthlySalesDemo.confidence || 0) * 100);
@@ -1064,87 +1088,68 @@ const Dashboard = () => {
               ))}
             </div>
 
-            <div className="relative h-[30rem] rounded-2xl border border-[var(--border)] overflow-hidden bg-[var(--surface-active)] shadow-[0_20px_50px_rgba(0,0,0,0.12)]">
-              <AtlasMap
-                center={{ lat: currentCity?.lat || INDIA_CENTER.lat, lng: currentCity?.lng || INDIA_CENTER.lng }}
-                zoom={currentCity ? 5.4 : 4}
-                activeMarkerName={currentCity?.name || ''}
-                markers={cityMarkers.map((c) => ({
-                  lat: Number(c.lat || CITY_COORDS[c.name]?.lat || INDIA_CENTER.lat),
-                  lng: Number(c.lng || CITY_COORDS[c.name]?.lng || INDIA_CENTER.lng),
-                  name: c.name,
-                }))}
-                onMarkerClick={(m) => setSelectedCity(m.name)}
-              />
+            <div className="rounded-2xl border border-[var(--border)] overflow-hidden bg-[var(--surface-active)] shadow-[0_20px_50px_rgba(0,0,0,0.12)]">
+              <div className="relative" style={{ height: '30rem' }}>
+                <AtlasMap
+                  center={{ lat: currentCity?.lat || INDIA_CENTER.lat, lng: currentCity?.lng || INDIA_CENTER.lng }}
+                  zoom={currentCity ? 5.4 : 4}
+                  activeMarkerName={currentCity?.name || ''}
+                  markers={cityMarkers.map((c) => ({
+                    lat: Number(c.lat || CITY_COORDS[c.name]?.lat || INDIA_CENTER.lat),
+                    lng: Number(c.lng || CITY_COORDS[c.name]?.lng || INDIA_CENTER.lng),
+                    name: c.name,
+                  }))}
+                  onMarkerClick={(m) => setSelectedCity(m.name)}
+                />
 
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,12,18,0.06),rgba(6,12,18,0.42))] pointer-events-none" />
-
-              <div className="absolute left-4 top-4 z-10 max-w-[20rem] rounded-xl border border-white/10 bg-[rgba(8,18,26,0.75)] p-4 text-white shadow-2xl backdrop-blur-md">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.22em] text-[rgba(184,199,211,0.95)]">Atlas map</p>
-                    <p className="mt-1 text-lg font-black leading-tight">Free tile map with active city focus</p>
-                  </div>
-                  <div className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-white/85">
-                    OSM
-                  </div>
-                </div>
-                <p className="mt-2 text-xs leading-relaxed text-[rgba(224,236,244,0.88)]">
-                  Click any glowing city dot to refocus the dashboard. The map stays visible even if the rest of the UI changes.
-                </p>
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,12,18,0.06),rgba(6,12,18,0.22))] pointer-events-none" />
               </div>
 
-              <div className="absolute right-4 top-4 z-10 rounded-xl border border-white/10 bg-[rgba(8,18,26,0.72)] px-4 py-3 text-white shadow-2xl backdrop-blur-md">
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[rgba(184,199,211,0.95)]">Active city</p>
-                <p className="mt-1 text-sm font-bold">{currentCity?.name || 'Tiruppur'}</p>
-                <p className="text-xs text-[rgba(224,236,244,0.82)]">{visibleFactories.length} factories shown</p>
-              </div>
-
-              <div className="absolute left-4 right-4 top-4 z-10 rounded-xl border border-[var(--border)] bg-[var(--surface)]/95 p-4 shadow-xl backdrop-blur">
-                <div className="flex items-start justify-between gap-3">
+              <div className="border-t border-[var(--border)] p-4 sm:p-5">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div>
                     <p className="text-sm font-black text-[var(--text)] i18n-wrap">{t('dashboard.mapTitle', 'Atlas network view')}</p>
                     <p className="text-xs text-[var(--text-secondary)] mt-1 leading-relaxed">
                       {t('dashboard.mapSubtitle', 'Real tile map with city markers and click-to-focus interaction.')}
                     </p>
                   </div>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="badge badge-secondary">{currentCity?.name || 'Tiruppur'}</span>
+                    <span className="badge badge-secondary">{formatCompactNumber(liveFactoryCount, { notation: 'compact', maximumFractionDigits: 0 })} {t('dashboard.factoriesVisible', 'factories visible')}</span>
+                    <span className="badge badge-secondary">{t('dashboard.clickCircleFocus', 'Click a circle to switch focus')}</span>
+                    <span className="badge badge-primary">Map</span>
+                  </div>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="badge badge-secondary">{currentCity?.name || 'Tiruppur'}</span>
-                  <span className="badge badge-secondary">{formatCompactNumber(liveFactoryCount, { notation: 'compact', maximumFractionDigits: 0 })} {t('dashboard.factoriesVisible', 'factories visible')}</span>
-                  <span className="badge badge-secondary">{t('dashboard.clickCircleFocus', 'Click a circle to switch focus')}</span>
-                  <span className="badge badge-primary">Map</span>
-                </div>
-              </div>
 
-              <div className="absolute left-5 bottom-5 right-5 grid grid-2 gap-3 z-10">
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
-                  <p className="text-xs text-[var(--text-tertiary)] uppercase tracking-wider">{t('dashboard.selectedCity', 'Selected city')}</p>
-                  <p className="text-lg font-black mt-1">{currentCity?.name || 'Tiruppur'}</p>
-                  <p className="text-xs text-[var(--text-muted)] mt-1">
-                    {currentCity?.factories || 0} local factories, {currentCity?.verified || 0} verified partners
-                  </p>
-                </div>
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
-                  <p className="text-xs text-[var(--text-tertiary)] uppercase tracking-wider">{t('dashboard.selectedFactory', 'Selected factory')}</p>
-                  {selectedFactory ? (
-                    <>
-                      <p className="text-lg font-black mt-1">{selectedFactory.name}</p>
-                      <p className="text-xs text-[var(--text-muted)] mt-1">
-                        {selectedFactory.city} • {selectedFactory.type}
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <button type="button" className="btn btn-small btn-secondary" onClick={() => setSelectedFactoryName(selectedFactory.name)}>
-                          {t('dashboard.focus', 'Focus')}
-                        </button>
-                        <span className={`badge ${selectedFactory.status === 'Verified' ? 'badge-primary' : 'badge-secondary'}`}>
-                          {selectedFactory.status}
-                        </span>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="text-xs text-[var(--text-muted)] mt-1">{t('dashboard.noFactoryVisible', 'No factory visible for the current filter.')}</p>
-                  )}
+                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                  <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+                    <p className="text-xs text-[var(--text-tertiary)] uppercase tracking-wider">{t('dashboard.selectedCity', 'Selected city')}</p>
+                    <p className="text-lg font-black mt-1">{currentCity?.name || 'Tiruppur'}</p>
+                    <p className="text-xs text-[var(--text-muted)] mt-1">
+                      {currentCity?.factories || 0} local factories, {currentCity?.verified || 0} verified partners
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+                    <p className="text-xs text-[var(--text-tertiary)] uppercase tracking-wider">{t('dashboard.selectedFactory', 'Selected factory')}</p>
+                    {selectedFactory ? (
+                      <>
+                        <p className="text-lg font-black mt-1">{selectedFactory.name}</p>
+                        <p className="text-xs text-[var(--text-muted)] mt-1">
+                          {selectedFactory.city} • {selectedFactory.type}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button type="button" className="btn btn-small btn-secondary" onClick={() => setSelectedFactoryName(selectedFactory.name)}>
+                            {t('dashboard.focus', 'Focus')}
+                          </button>
+                          <span className={`badge ${selectedFactory.status === 'Verified' ? 'badge-primary' : 'badge-secondary'}`}>
+                            {selectedFactory.status}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-xs text-[var(--text-muted)] mt-1">{t('dashboard.noFactoryVisible', 'No factory visible for the current filter.')}</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1247,14 +1252,14 @@ const Dashboard = () => {
             </motion.div>
           </motion.div>
 
-          <div className="grid gap-6">
+          <div className="grid gap-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.6 }}
-              className="card"
+              className="card p-5 lg:p-6"
             >
-              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center justify-between gap-3 mb-5">
                 <div className="flex items-center gap-2">
                   <Sparkles size={18} className="text-[var(--secondary)]" />
                   <h3>{t('dashboard.aiRecommendation', 'AI Recommendation')}</h3>
@@ -1269,7 +1274,16 @@ const Dashboard = () => {
               <p className="text-lg font-black text-[var(--text)]">{recommendation.title}</p>
               <p className="text-sm text-[var(--text-secondary)] mt-2 leading-relaxed">{recommendation.summary}</p>
               {aiError ? <p className="text-xs text-[var(--warning)] mt-2">{aiError}</p> : null}
-              <div className="space-y-2 mt-4">
+              <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface-active)] p-3">
+                <div className="flex items-center justify-between gap-2 text-xs uppercase tracking-wider text-[var(--text-tertiary)]">
+                  <span>Recommendation confidence</span>
+                  <span className="font-bold text-[var(--primary)]">{recommendation.confidence}</span>
+                </div>
+                <div className="mt-2 h-2 rounded-full bg-[var(--border)] overflow-hidden">
+                  <div className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)]" style={{ width: recommendation.confidence }} />
+                </div>
+              </div>
+              <div className="space-y-3 mt-4">
                 {recommendation.reasons.map((reason) => (
                   <div key={reason} className="flex items-start gap-2 text-sm text-[var(--text-secondary)]">
                     <CheckCircle2 size={16} className="mt-0.5 text-[var(--success)] flex-shrink-0" />
@@ -1277,21 +1291,27 @@ const Dashboard = () => {
                   </div>
                 ))}
               </div>
-              <div className="grid grid-2 gap-3 mt-4">
+              <div className="grid grid-2 gap-4 mt-5">
                 <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-active)] p-3">
                   <p className="text-xs uppercase tracking-wider text-[var(--text-tertiary)]">Route risk</p>
                   <p className="text-2xl font-black mt-1">{routeRiskScore}/100</p>
                   <p className="text-xs text-[var(--text-muted)] mt-1">Higher risk means the deal should move faster and stay on top of the queue.</p>
+                  <div className="mt-3 h-2 rounded-full bg-[var(--border)] overflow-hidden">
+                    <div className="h-full rounded-full bg-[var(--warning)]" style={{ width: `${clamp(routeRiskScore, 0, 100)}%` }} />
+                  </div>
                 </div>
                 <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-active)] p-3">
                   <p className="text-xs uppercase tracking-wider text-[var(--text-tertiary)]">Suggested transport</p>
                   <p className="text-base font-black mt-1">{routeRiskScore > 60 ? 'Dedicated pickup' : 'Shared route bundle'}</p>
                   <p className="text-xs text-[var(--text-muted)] mt-1">{routeDistanceKm > 120 ? 'Use a longer buffer window and verify carrier capacity.' : 'Lean on nearby carriers to keep the route efficient.'}</p>
+                  <div className="mt-3 h-2 rounded-full bg-[var(--border)] overflow-hidden">
+                    <div className="h-full rounded-full bg-[var(--primary)]" style={{ width: `${clamp(100 - routeRiskScore, 0, 100)}%` }} />
+                  </div>
                 </div>
               </div>
               <button
                 type="button"
-                className="btn btn-secondary w-full mt-5"
+                className="btn btn-secondary w-full mt-6"
                 onClick={requestGeminiRecommendation}
                 disabled={aiLoading}
               >
@@ -1299,7 +1319,7 @@ const Dashboard = () => {
                   ? t('dashboard.refreshingWithGemini', 'Refreshing with Gemini...')
                   : t('dashboard.refreshWithGemini', 'Refresh with Gemini')}
               </button>
-              <button className="btn btn-primary w-full mt-5">
+              <button className="btn btn-primary w-full mt-3">
                 {recommendation.action}
               </button>
             </motion.div>
@@ -1376,7 +1396,7 @@ const Dashboard = () => {
                   {clusterHeatmap.map((city) => (
                     <div key={city.name} className="flex items-center gap-3">
                       <span className="w-20 text-xs font-semibold text-[var(--text-secondary)] truncate">{city.name}</span>
-                      <div className="h-2 flex-1 rounded-full bg-[var(--surface)] overflow-hidden">
+                      <div className="h-3 flex-1 rounded-full bg-[var(--surface-soft)] overflow-hidden shadow-inner">
                         <motion.div
                           initial={{ width: 0 }}
                           whileInView={{ width: `${city.intensity}%` }}
@@ -1482,41 +1502,53 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="grid grid-4 gap-3 mb-4">
-            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-active)] p-3">
+          <div className="grid grid-4 gap-4 mb-6">
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-active)] p-4">
               <p className="text-xs uppercase tracking-wider text-[var(--text-tertiary)]">30-day volume</p>
               <p className="text-xl font-black mt-1">{formatCompactNumber(monthlySeries.reduce((sum, value) => sum + value, 0), { notation: 'compact', maximumFractionDigits: 1 })}</p>
               <p className="text-xs text-[var(--text-muted)] mt-1">Combined listings + deals + operations</p>
+              <div className="mt-3 h-2 rounded-full bg-[var(--border)] overflow-hidden">
+                <div className="h-full w-full rounded-full bg-gradient-to-r from-[var(--secondary)] to-[var(--primary)]" />
+              </div>
             </div>
-            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-active)] p-3">
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-active)] p-4">
               <p className="text-xs uppercase tracking-wider text-[var(--text-tertiary)]">Trend</p>
               <p className="text-xl font-black mt-1">{monthlyTrend >= 0 ? '+' : ''}{monthlyTrend.toFixed(1)}%</p>
               <p className="text-xs text-[var(--text-muted)] mt-1">Growth from day 1 to day 30</p>
+              <div className="mt-3 h-2 rounded-full bg-[var(--border)] overflow-hidden">
+                <div className="h-full rounded-full bg-[var(--primary)]" style={{ width: `${clamp(Math.abs(monthlyTrend), 0, 100)}%` }} />
+              </div>
             </div>
-            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-active)] p-3">
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-active)] p-4">
               <p className="text-xs uppercase tracking-wider text-[var(--text-tertiary)]">Projected next 7 days</p>
               <p className="text-xl font-black mt-1">{formatCompactNumber(monthlyForecast.reduce((sum, value) => sum + value, 0), { notation: 'compact', maximumFractionDigits: 1 })}</p>
               <p className="text-xs text-[var(--text-muted)] mt-1">Model forecast output</p>
+              <div className="mt-3 h-2 rounded-full bg-[var(--border)] overflow-hidden">
+                <div className="h-full rounded-full bg-[var(--warning)]" style={{ width: '100%' }} />
+              </div>
             </div>
-            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-active)] p-3">
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-active)] p-4">
               <p className="text-xs uppercase tracking-wider text-[var(--text-tertiary)]">Monthly value</p>
               <p className="text-xl font-black mt-1">{formatCompactNumber(monthlySalesDemo.totalMonthlyValueInr || 0, { style: 'currency', currency: 'INR', maximumFractionDigits: 1 })}</p>
               <p className="text-xs text-[var(--text-muted)] mt-1">Estimated deal value in INR</p>
+              <div className="mt-3 h-2 rounded-full bg-[var(--border)] overflow-hidden">
+                <div className="h-full rounded-full bg-[var(--secondary)]" style={{ width: '100%' }} />
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-3 gap-3 mb-4">
-            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-active)] p-3">
+          <div className="grid grid-3 gap-4 mb-6">
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-active)] p-4">
               <p className="text-xs uppercase tracking-wider text-[var(--text-tertiary)]">Listings contribution</p>
               <p className="text-xl font-black mt-1">{monthlyRoiBreakdown.listingsContributionPercent.toFixed(1)}%</p>
               <p className="text-xs text-[var(--text-muted)] mt-1">Share of monthly value from listing activity</p>
             </div>
-            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-active)] p-3">
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-active)] p-4">
               <p className="text-xs uppercase tracking-wider text-[var(--text-tertiary)]">Deal conversion contribution</p>
               <p className="text-xl font-black mt-1">{monthlyRoiBreakdown.dealConversionContributionPercent.toFixed(1)}%</p>
               <p className="text-xs text-[var(--text-muted)] mt-1">Share of monthly value from converted deals</p>
             </div>
-            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-active)] p-3">
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-active)] p-4">
               <p className="text-xs uppercase tracking-wider text-[var(--text-tertiary)]">Operations contribution</p>
               <p className="text-xl font-black mt-1">{monthlyRoiBreakdown.operationsContributionPercent.toFixed(1)}%</p>
               <p className="text-xs text-[var(--text-muted)] mt-1">Share of monthly value protected by logistics</p>
@@ -1533,34 +1565,57 @@ const Dashboard = () => {
             <p className="text-sm text-[var(--text-secondary)] mt-2">
               Base model confidence {monthlyBaseConfidence}% reduced to {monthlyConfidence}% due to missing or inconsistent monthlySales30d/value fields.
             </p>
-            <div className="grid grid-4 gap-2 mt-3">
-              <div className="rounded-lg border border-[var(--border)] p-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] uppercase tracking-wider text-[var(--text-tertiary)]">Completeness</p>
-                  <span className={`badge ${completenessBadge.className}`}>{completenessBadge.label}</span>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div className="p-3 rounded-md bg-[var(--surface)] border border-[var(--border)]">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-sm font-semibold text-[var(--text)]">Completeness</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-black">{monthlyQualityCompleteness}%</p>
+                    <span className={`badge ${completenessBadge.className}`}>{completenessBadge.label}</span>
+                  </div>
                 </div>
-                <p className="text-sm font-black mt-1">{monthlyQualityCompleteness}%</p>
+                <div className="mt-2 h-3 rounded-full bg-[var(--border)] overflow-hidden">
+                  <div className={`h-full rounded-full ${completenessBadge.className === 'badge-danger' ? 'bg-[var(--danger)]' : completenessBadge.className === 'badge-warning' ? 'bg-[var(--warning)]' : 'bg-[var(--success)]'}`} style={{ width: `${monthlyQualityCompleteness}%` }} />
+                </div>
               </div>
-              <div className="rounded-lg border border-[var(--border)] p-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] uppercase tracking-wider text-[var(--text-tertiary)]">Consistency</p>
-                  <span className={`badge ${consistencyBadge.className}`}>{consistencyBadge.label}</span>
+
+              <div className="p-3 rounded-md bg-[var(--surface)] border border-[var(--border)]">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-sm font-semibold text-[var(--text)]">Consistency</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-black">{monthlyQualityConsistency}%</p>
+                    <span className={`badge ${consistencyBadge.className}`}>{consistencyBadge.label}</span>
+                  </div>
                 </div>
-                <p className="text-sm font-black mt-1">{monthlyQualityConsistency}%</p>
+                <div className="mt-2 h-3 rounded-full bg-[var(--border)] overflow-hidden">
+                  <div className={`h-full rounded-full ${consistencyBadge.className === 'badge-danger' ? 'bg-[var(--danger)]' : consistencyBadge.className === 'badge-warning' ? 'bg-[var(--warning)]' : 'bg-[var(--success)]'}`} style={{ width: `${monthlyQualityConsistency}%` }} />
+                </div>
               </div>
-              <div className="rounded-lg border border-[var(--border)] p-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] uppercase tracking-wider text-[var(--text-tertiary)]">Freshness</p>
-                  <span className={`badge ${freshnessBadge.className}`}>{freshnessBadge.label}</span>
+
+              <div className="p-3 rounded-md bg-[var(--surface)] border border-[var(--border)]">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-sm font-semibold text-[var(--text)]">Freshness</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-black">{monthlyQualityFreshness}%</p>
+                    <span className={`badge ${freshnessBadge.className}`}>{freshnessBadge.label}</span>
+                  </div>
                 </div>
-                <p className="text-sm font-black mt-1">{monthlyQualityFreshness}%</p>
+                <div className="mt-2 h-3 rounded-full bg-[var(--border)] overflow-hidden">
+                  <div className={`h-full rounded-full ${freshnessBadge.className === 'badge-danger' ? 'bg-[var(--danger)]' : freshnessBadge.className === 'badge-warning' ? 'bg-[var(--warning)]' : 'bg-[var(--success)]'}`} style={{ width: `${monthlyQualityFreshness}%` }} />
+                </div>
               </div>
-              <div className="rounded-lg border border-[var(--border)] p-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] uppercase tracking-wider text-[var(--text-tertiary)]">Value coverage</p>
-                  <span className={`badge ${valueCoverageBadge.className}`}>{valueCoverageBadge.label}</span>
+
+              <div className="p-3 rounded-md bg-[var(--surface)] border border-[var(--border)]">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-sm font-semibold text-[var(--text)]">Value coverage</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-black">{monthlyQualityValueCoverage}%</p>
+                    <span className={`badge ${valueCoverageBadge.className}`}>{valueCoverageBadge.label}</span>
+                  </div>
                 </div>
-                <p className="text-sm font-black mt-1">{monthlyQualityValueCoverage}%</p>
+                <div className="mt-2 h-3 rounded-full bg-[var(--border)] overflow-hidden">
+                  <div className={`h-full rounded-full ${valueCoverageBadge.className === 'badge-danger' ? 'bg-[var(--danger)]' : valueCoverageBadge.className === 'badge-warning' ? 'bg-[var(--warning)]' : 'bg-[var(--success)]'}`} style={{ width: `${monthlyQualityValueCoverage}%` }} />
+                </div>
               </div>
             </div>
             <p className="text-xs text-[var(--text-muted)] mt-3">Thresholds: quality GREEN &gt;= 85, AMBER 65-84, RED &lt; 65. Penalty GREEN &lt;= 7, AMBER 8-15, RED &gt; 15.</p>
@@ -1574,33 +1629,54 @@ const Dashboard = () => {
           </div>
 
           <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-active)] p-4">
-            <p className="text-xs text-[var(--text-tertiary)] uppercase tracking-wider mb-3">Historical vs forecast</p>
-            <svg viewBox="0 0 100 40" className="w-full h-52 overflow-visible">
-              <defs>
-                <linearGradient id="monthlySalesGradient" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor="var(--secondary)" stopOpacity="0.85" />
-                  <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.2" />
-                </linearGradient>
-              </defs>
-              <polyline
-                fill="none"
-                stroke="url(#monthlySalesGradient)"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                points={monthlyHistoryPoints}
-              />
-              <polyline
-                fill="none"
-                stroke="var(--warning)"
-                strokeWidth="1.5"
-                strokeDasharray="3 2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                points={monthlyForecastPoints}
-              />
-            </svg>
-            <div className="mt-3 flex gap-4 text-xs text-[var(--text-muted)]">
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+              <p className="text-xs text-[var(--text-tertiary)] uppercase tracking-wider">Historical vs forecast</p>
+              <div className="flex items-center gap-3 text-[11px] text-[var(--text-muted)]">
+                <span className="flex items-center gap-1">
+                  <span className="inline-block h-2 w-2 rounded-full bg-[var(--primary)]" /> Historical
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block h-2 w-2 rounded-full bg-[var(--warning)]" /> Forecast
+                </span>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-[var(--border)] bg-[linear-gradient(180deg,rgba(18,30,40,0.92),rgba(18,30,40,0.72))] p-3">
+              <svg viewBox="0 0 100 40" className="block h-60 w-full overflow-visible">
+                <defs>
+                  <linearGradient id="monthlySalesGradient" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="var(--secondary)" stopOpacity="0.75" />
+                    <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.18" />
+                  </linearGradient>
+                  <linearGradient id="monthlyForecastGradient" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="var(--warning)" stopOpacity="0.48" />
+                    <stop offset="100%" stopColor="var(--warning)" stopOpacity="0.08" />
+                  </linearGradient>
+                </defs>
+                {[8, 16, 24, 32].map((lineY) => (
+                  <line key={lineY} x1="4" x2="96" y1={lineY} y2={lineY} stroke="rgba(176, 200, 219, 0.12)" strokeDasharray="2 3" />
+                ))}
+                <polygon points={monthlyHistoryAreaPoints} fill="url(#monthlySalesGradient)" opacity="0.75" />
+                <polyline
+                  fill="none"
+                  stroke="url(#monthlySalesGradient)"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  points={monthlyHistoryPoints}
+                />
+                <polygon points={monthlyForecastAreaPoints} fill="url(#monthlyForecastGradient)" opacity="0.85" />
+                <polyline
+                  fill="none"
+                  stroke="var(--warning)"
+                  strokeWidth="1.7"
+                  strokeDasharray="3 2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  points={monthlyForecastPoints}
+                />
+              </svg>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-4 text-xs text-[var(--text-muted)]">
               <span>Days 1-30: historical streams</span>
               <span>Days 31-37: BigQuery ML forecast</span>
             </div>
@@ -1620,6 +1696,9 @@ const Dashboard = () => {
                   <p className="text-lg font-black mt-1">{stream.series[stream.series.length - 1] || 0} / day</p>
                   <p className="text-xs text-[var(--text-muted)] mt-1">30-day value: {formatCompactNumber(stream.monthlyValueInr || 0, { style: 'currency', currency: 'INR', maximumFractionDigits: 1 })}</p>
                   <p className="text-xs text-[var(--text-muted)] mt-1">Contribution: {(stream.contributionPercent || 0).toFixed(1)}% • Quality: {streamQuality}%</p>
+                  <div className="mt-3 h-2 rounded-full bg-[var(--border)] overflow-hidden">
+                    <div className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)]" style={{ width: `${stream.contributionPercent || 0}%` }} />
+                  </div>
                 </div>
               );
             })}
@@ -1709,7 +1788,7 @@ const Dashboard = () => {
                     <span className="font-semibold text-[var(--text)]">{entry.label}</span>
                     <span className="text-[var(--text-muted)]">{entry.value}%</span>
                   </div>
-                  <div className="h-2 rounded-full bg-[var(--surface-active)] overflow-hidden">
+                  <div className="h-3 rounded-full bg-[var(--surface-soft)] overflow-hidden shadow-inner">
                     <motion.div
                       initial={{ width: 0 }}
                       whileInView={{ width: `${entry.value}%` }}
@@ -1741,7 +1820,7 @@ const Dashboard = () => {
                     <span className="font-semibold text-[var(--text)]">{entry.label}</span>
                     <span className="text-[var(--text-muted)]">{entry.value}</span>
                   </div>
-                  <div className="h-3 rounded-full bg-[var(--surface-active)] overflow-hidden">
+                  <div className="h-4 rounded-full bg-[var(--surface-soft)] overflow-hidden shadow-inner">
                     <motion.div
                       initial={{ width: 0 }}
                       whileInView={{ width: `${Math.max((entry.value / maxLifecycle) * 100, 14)}%` }}
